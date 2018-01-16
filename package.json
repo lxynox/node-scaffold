@@ -1,0 +1,25 @@
+{
+  "name": "scaffold",
+  "version": "1.0.0",
+  "description": "Example scaffold using node",
+  "main": "index.js",
+  "bin": {
+    "scaffold": "bin/scaffold"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@gh-lxynox:lxynox/node-scaffold.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "detect-conflict": "^1.0.1",
+    "ejs": "^2.5.7",
+    "fs-extra": "^5.0.0",
+    "inquirer": "^5.0.0",
+    "yamljs": "^0.3.0"
+  }
+}

@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+
+const { 
+  readFile, 
+  outputFile, 
+  move
+} = require('fs-extra')
+const path = require('path')
+const yaml = require('yamljs')
+const ejs = require('ejs')
+const Conflicter = require('../conflicter')
+const {
+  log,
+  success,
+  error,
+  info,
+  debug
+} = require('../logger')
+
+
+const DEFAULT_SETTINGS = {
+  templateRoot: '../templates',
+  destRoot: 'v2',
+  component: {
+    isClassComponent: false,
+    useRedux: false,
+    useReadme: false
+  }
+}
+
+
+class CLC {
+  constructor(resolver, srcRoot, dstRoot) {
+    this.resolver = resolver
+    this.templateRoot = path.resolve(srcRoot || __dirname, DEFAULT_SETTINGS.templateRoot)
+    this.destinationRoot = dstRoot || process.cwd()
+    this.settings = yaml.load(path.resolve(__dirname, '../settings.yml'))
+  }
+
+  getTemplatePath(filepath) {
+    return path.resolve(this.templateRoot, filepath)
+  }
+
+  getDestinationPath(filepath) {
+    return path.resolve(this.destinationRoot, filepath)
+  }
+
+  async createFile({from, to}, templateData) {
+    const templateString = await readFile(this.getTemplatePath(from), 'utf8') 
+    const contents = ejs.compile(templateString)(templateData)
+    const filepath = this.getDestinationPath(to)
+    return { filepath: to, contents}
+  }
+
+  async handleCheck({filepath, contents}, action) {
+    // skip: `identical`/`skip`
+    if (action === 'identical') {
+      info(`${filepath} identical.`)
+      return
+    }
+    if (action === 'skip') {
+      info(`${filepath} skipped.`)
+      return
+    }
+
+    // write: `create`/`backup`/`overwrite`
+    try {
+      if (action === 'backup') {
+        try { 
+          await move(filepath, filepath + '.backup')
+        } catch(e) {
+          error(`${filepath} failed to backup`)
+        }
+      }
+
+      await outputFile(filepath, contents)
+      success(`${filepath} succeed to ${action}`)
+    } catch (err) {
+      error(`${filepath} failed to ${action}.\n${err}`)
+    }
+  }
+
+  async run() {
+    const {
+      folders,
+      components
+    } = this.settings
+
+    const folderKeys = Object.keys(folders)
+
+    for (const folderName of folderKeys) { // each folder
+      let from = 'index.js' 
+      let to = `${DEFAULT_SETTINGS.destRoot}/${folderName}/index.js`
+      const comps = folders[folderName].components
+
+      // debug(`\n----------------------/ ${folderName}\n`, from, to, '\n')
+      const indexJs = await this.createFile({from, to}, {components: comps})
+      await this.resolver.check(indexJs, this.handleCheck) // log
+
+      for (const componentName of comps) { // each component
+        const {
+          isClassComponent = DEFAULT_SETTINGS.component.isClassComponent
+        } = components[componentName]
+        const templates = [
+          isClassComponent ? './ClassComponent.js' : './FunctionalComponent.js',
+          './index.css',
+          './index.spec.js'
+        ]
+
+        for (const templatePath of templates) {
+          const isTest = templatePath.indexOf('spec') > 0
+          const fileExt = templatePath.split('.').pop()
+          const filename = [
+            isTest ? '__tests__/' : '',
+            componentName,
+            isTest ? '.spec' : '.',
+            fileExt
+          ].join('')
+
+          from = templatePath
+          to = `${DEFAULT_SETTINGS.destRoot}/${folderName}/${filename}`
+
+          // debug('from', from, ' -----> ', to)
+          const tFile = await this.createFile({from, to}, {componentName})
+          await this.resolver.check(tFile, this.handleCheck) //log
+        }
+      }
+    }
+  }
+}
+
+const runner = new CLC(Conflicter())
+
+runner.run()

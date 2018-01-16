@@ -1,0 +1,19 @@
+---
+folders:
+  Button:
+    components:
+      - Button
+  Form:
+    components:
+      - Select
+      - TextInput
+      - TextArea
+
+components:
+  Button: {}
+  Select: {}
+  TextArea: {}
+  TextInput:
+      isClassComponent: true
+      isTestInSameDirectory: true
+
